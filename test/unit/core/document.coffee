@@ -2,7 +2,7 @@ dom = Quill.Lib.DOM
 
 describe('Document', ->
   beforeEach( ->
-    @container = $('#test-container').html('').get(0)
+    @container = jasmine.clearContainer()
   )
 
   describe('constructor', ->
@@ -31,6 +31,12 @@ describe('Document', ->
       'list':
         initial:  '<div><ul><li>line</li></ul></div>'
         expected: '<ul><li>line</li></ul>'
+      'nested divs':
+        initial:  '<div><div>One<div><div>Alpha<div><div>I</div></div></div></div></div></div>'
+        expected: '<div>One</div><div>Alpha</div><div>I</div>'
+      'nested list':
+        initial:  '<ul><li>One<ul><li>Alpha<ul><li>I</li></ul></li></ul></li></ul>'
+        expected: '<ul><li>One</li><li>Alpha</li><li>I</li></ul>'
 
     _.each(tests, (test, name) ->
       it(name, ->
@@ -65,19 +71,19 @@ describe('Document', ->
       node.innerHTML = 'Test'
       @doc.root.appendChild(node)
       line = @doc.findLine(node)
-      expect(line).toBe(null)
+      expect(line).toBeUndefined()
     )
 
     it('findLine() not in doc', ->
-      line = @doc.findLine($('#toolbar-container').get(0))
-      expect(line).toBe(null)
+      line = @doc.findLine($('#test-container').get(0))
+      expect(line).toBeUndefined()
     )
 
     it('findLine() id false positive', ->
       clone = @doc.root.firstChild.cloneNode(true)
       @doc.root.appendChild(clone)
       line = @doc.findLine(clone)
-      expect(line).toBe(null)
+      expect(line).toBeUndefined()
     )
 
     it('findLine() leaf node', ->
@@ -119,7 +125,7 @@ describe('Document', ->
 
     it('findLineAt() beyond document', ->
       [line, offset] = @doc.findLineAt(12)
-      expect(line).toBe(null)
+      expect(line).toBeUndefined()
       expect(offset).toEqual(1)
     )
   )

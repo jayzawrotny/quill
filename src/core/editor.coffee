@@ -1,4 +1,5 @@
 _         = require('lodash')
+Delta     = require('rich-text/lib/delta')
 dom       = require('../lib/dom')
 Document  = require('./document')
 Line      = require('./line')
@@ -18,6 +19,10 @@ class Editor
     @length = @delta.length()
     @selection = new Selection(@doc, @quill)
     @timer = setInterval(_.bind(this.checkUpdate, this), @options.pollInterval)
+    @savedRange = null;
+    @quill.on("selection-change", (range) =>
+      @savedRange = range
+    )
     this.enable() unless @options.readOnly
 
   destroy: ->
@@ -42,8 +47,7 @@ class Editor
             this._insertAt(index, op.insert, op.attributes)
             index += op.insert.length;
           else if _.isNumber(op.insert)
-            # TODO embed needs native insert
-            this._insertAt(index, dom.EMBED_TEXT, op.attributes)
+            this._insertEmbed(index, op.attributes)
             index += 1;
           else if _.isNumber(op.delete)
             this._deleteAt(index, op.delete)
@@ -66,7 +70,7 @@ class Editor
     return clearInterval(@timer) unless @root.parentNode?
     delta = this._update()
     if delta
-      @delta.compose(delta)
+      @delta = @delta.compose(delta)
       @length = @delta.length()
       @quill.emit(@quill.constructor.events.TEXT_CHANGE, delta, source)
     source = Editor.sources.SILENT if delta
@@ -81,11 +85,14 @@ class Editor
   getBounds: (index) ->
     this.checkUpdate()
     [leaf, offset] = @doc.findLeafAt(index, true)
-    throw new Error('Invalid index') unless leaf?
+    return null unless leaf?
     containerBounds = @root.parentNode.getBoundingClientRect()
     side = 'left'
-    if leaf.length == 0
+    if leaf.length == 0   # BR case
       bounds = leaf.node.parentNode.getBoundingClientRect()
+    else if dom.VOID_TAGS[leaf.node.tagName]
+      bounds = leaf.node.getBoundingClientRect()
+      side = 'right' if offset == 1
     else
       range = document.createRange()
       if offset < leaf.length
@@ -98,7 +105,7 @@ class Editor
       bounds = range.getBoundingClientRect()
     return {
       height: bounds.height
-      left: bounds[side] - containerBounds.left,
+      left: bounds[side] - containerBounds.left
       top: bounds.top - containerBounds.top
     }
 
@@ -134,6 +141,12 @@ class Editor
         line = line.next
     )
 
+  _insertEmbed: (index, attributes) ->
+    @selection.shiftAfter(index, 1, =>
+      [line, offset] = @doc.findLineAt(index)
+      line.insertEmbed(offset, attributes)
+    )
+
   _insertAt: (index, text, formatting = {}) ->
     @selection.shiftAfter(index, text.length, =>
       text = text.replace(/\r\n?/g, '\n')
@@ -160,11 +173,21 @@ class Editor
     )
 
   _trackDelta: (fn) ->
+    oldIndex = @savedRange?.start
     fn()
     newDelta = @doc.toDelta()
-    # TODO need to get this to prefer earlier insertions
-    delta = @delta.diff(newDelta)
-    return delta
+    @savedRange = @selection.getRange()
+    newIndex = @savedRange?.start
+    try
+      if oldIndex? and newIndex? and oldIndex <= @delta.length() and newIndex <= newDelta.length()
+        oldRightDelta = @delta.slice(oldIndex)
+        newRightDelta = newDelta.slice(newIndex)
+        if _.isEqual(oldRightDelta.ops, newRightDelta.ops)
+          oldLeftDelta = @delta.slice(0, oldIndex)
+          newLeftDelta = newDelta.slice(0, newIndex)
+          return oldLeftDelta.diff(newLeftDelta)
+    catch ignored
+    return @delta.diff(newDelta)
 
   _update: ->
     return false if @innerHTML == @root.innerHTML

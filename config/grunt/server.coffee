@@ -3,6 +3,7 @@ browserify = require('browserify')
 coffeeify = require('coffeeify')
 fs = require('fs')
 harp = require('harp')
+proxy = require('http-proxy')
 stylify = require('stylify')
 stylus = require('stylus')
 watchify = require('watchify')
@@ -26,7 +27,10 @@ bundle = (watcher) ->
 
 serve = (connect, req, res, next) ->
   watchers = connect.watchers
-  switch req.url
+  if req.url.indexOf('/karma') == 0 or req.url.indexOf('/base') == 0
+    return connect.karmaProxy.web(req, res)
+  url = if req.url.indexOf('/develop') == 0 then req.url.slice('/develop'.length) else req.url
+  switch url
     when '/quill.js'
       res.setHeader('Content-Type', 'application/javascript')
       bundle(watchers['src']).pipe(res)
@@ -34,7 +38,7 @@ serve = (connect, req, res, next) ->
       res.setHeader('Content-Type', 'application/javascript')
       bundle(watchers['test']).pipe(res)
     when '/quill.snow.css', '/quill.base.css'
-      theme = req.url.slice(7, 11)
+      theme = url.slice(7, 11)
       res.setHeader('Content-Type', 'text/css')
       fs.readFile("./src/themes/#{theme}/#{theme}.styl", (err, data) ->
         s = stylus(data.toString())
@@ -66,6 +70,7 @@ module.exports = (grunt) ->
           bundle(watchers[type])
           return watchers
         , {})
+        connect.karmaProxy = proxy.createProxyServer({ target: "http://localhost:#{grunt.config('karmaPort')}" })
       middleware: (connect, options, middlewares) ->
         middlewares.push(serve.bind(this, connect))
         middlewares.push(harp.mount(__dirname + '/../..'))
@@ -78,5 +83,5 @@ module.exports = (grunt) ->
   )
 
   grunt.event.once('connect.server.listening', (host, port) ->
-    grunt.config.set('port', port)
+    grunt.config('port', port)
   )

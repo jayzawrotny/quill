@@ -25,7 +25,6 @@ module.exports = function(config) {
       '**/*.coffee': ['coffee'],
       '**/*.html': ['html2js']
     },
-    port: 9876,
     colors: true,
     logLevel: config.LOG_INFO,
     autoWatch: false,

@@ -1,7 +1,6 @@
 Quill      = require('../quill')
 _          = Quill.require('lodash')
 dom        = Quill.require('dom')
-Normalizer = Quill.require('normalizer')
 
 
 class Tooltip
@@ -13,21 +12,25 @@ class Tooltip
 
   constructor: (@quill, @options) ->
     @container = @quill.addContainer('ql-tooltip')
-    @container.innerHTML = Normalizer.stripWhitespace(@options.template)
-    dom(@quill.root).on('focus', _.bind(this.hide, this))
+    @container.innerHTML = @options.template
     this.hide()
     @quill.on(@quill.constructor.events.TEXT_CHANGE, (delta, source) =>
-      if source == 'user' and @container.style.left != Tooltip.HIDE_MARGIN
+      if @container.style.left != Tooltip.HIDE_MARGIN
         @range = null
         this.hide()
     )
 
   initTextbox: (textbox, enterCallback, escapeCallback) ->
-    dom(textbox).on('keyup', (event) =>
+    dom(textbox).on('keydown', (event) =>
       switch event.which
-        when dom.KEYS.ENTER  then enterCallback.call(this)
-        when dom.KEYS.ESCAPE then escapeCallback.call(this)
-        else return true
+        when dom.KEYS.ENTER
+          event.preventDefault()
+          enterCallback.call(this)
+        when dom.KEYS.ESCAPE
+          event.preventDefault()
+          escapeCallback.call(this)
+        else
+          return true
     )
 
   hide: ->

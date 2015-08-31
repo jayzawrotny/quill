@@ -1,6 +1,6 @@
 describe('Quill', ->
   beforeEach( ->
-    resetContainer()
+    jasmine.resetEditor()
     @container = $('#editor-container').html('
       <div>
         <div>0123</div>
@@ -175,6 +175,46 @@ describe('Quill', ->
       @quill.setSelection(null)
       range = @quill.getSelection()
       expect(range).toBe(null)
+    )
+  )
+
+  describe('events', ->
+    it('format middle', (done) ->
+      @quill.setHTML('<div><b>a</b><i>b</i><u>c</u></div>')
+      @quill.editor.checkUpdate()
+      @quill.setSelection(1, 2)
+      @quill.on('text-change', (delta) ->
+        expect(delta).toEqualDelta(new Quill.Delta().retain(1).retain(1, { strike: true }))
+        done()
+      )
+      $('i', @quill.root).wrap('<s></s>')
+      @quill.editor.checkUpdate()
+    )
+
+    it('ambiguous insert', (done) ->
+      @quill.setHTML('<div><b>a</b><i>a</i><u>a</u></div>')
+      @quill.editor.checkUpdate()
+      @quill.setSelection(1, 1)
+      @quill.on('text-change', (delta) ->
+        expect(delta).toEqualDelta(new Quill.Delta().retain(1).insert('a', { bold: true }))
+        done()
+      )
+      bold = @quill.root.querySelector('b')
+      bold.insertBefore(document.createTextNode('a'), bold.lastChild)
+      @quill.editor.checkUpdate()
+    )
+
+    it('immutability', (done) ->
+      @quill.setHTML('<div>123</div>')
+      expected = new Quill.Delta().insert('0')
+      @quill.once('text-change', (delta) =>
+        expect(delta).toEqualDelta(expected)
+        delta.compose(new Quill.Delta().insert('^'))
+      ).once('text-change', (delta) =>
+        expect(delta).toEqualDelta(expected)
+        done()
+      )
+      @quill.insertText(0, '0')
     )
   )
 

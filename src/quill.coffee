@@ -3,6 +3,7 @@ pkg           = require('../package.json')
 Delta         = require('rich-text/lib/delta')
 EventEmitter2 = require('eventemitter2').EventEmitter2
 dom           = require('./lib/dom')
+Document      = require('./core/document')
 Editor        = require('./core/editor')
 Format        = require('./core/format')
 Normalizer    = require('./core/normalizer')
@@ -28,6 +29,7 @@ class Quill extends EventEmitter2
     theme: 'base'
 
   @events:
+    FORMAT_INIT      : 'format-init'
     MODULE_INIT      : 'module-init'
     POST_EVENT       : 'post-event'
     PRE_EVENT        : 'pre-event'
@@ -48,14 +50,16 @@ class Quill extends EventEmitter2
     switch name
       when 'lodash'     then return _
       when 'delta'      then return Delta
+      when 'format'     then return Format
       when 'normalizer' then return Normalizer
       when 'dom'        then return dom
+      when 'document'   then return Document
       when 'range'      then return Range
       else return null
 
 
   constructor: (@container, options = {}) ->
-    @container = document.querySelector(container) if _.isString(@container)
+    @container = document.querySelector(@container) if _.isString(@container)
     throw new Error('Invalid Quill container') unless @container?
     moduleOptions = _.defaults(options.modules or {}, Quill.DEFAULTS.modules)
     html = @container.innerHTML
@@ -92,8 +96,9 @@ class Quill extends EventEmitter2
     @container.insertBefore(container, refNode)
     return container
 
-  addFormat: (name, format) ->
-    @editor.doc.addFormat(name, format)
+  addFormat: (name, config) ->
+    @editor.doc.addFormat(name, config)
+    this.emit(Quill.events.FORMAT_INIT, name)
 
   addModule: (name, options) ->
     moduleClass = Quill.modules[name]
@@ -163,7 +168,9 @@ class Quill extends EventEmitter2
     ).join('')
 
   insertEmbed: (index, type, url, source) ->
-    this.insertText(index, dom.EMBED_TEXT, type, url, source)
+    [index, end, formats, source] = this._buildParams(index, 0, type, url, source)
+    delta = new Delta().retain(index).insert(1, formats)
+    @editor.applyDelta(delta, source)
 
   insertText: (index, text, name, value, source) ->
     [index, end, formats, source] = this._buildParams(index, 0, name, value, source)
@@ -189,10 +196,14 @@ class Quill extends EventEmitter2
 
   setContents: (delta, source = Quill.sources.API) ->
     if Array.isArray(delta)
-      delta = { ops: delta.slice() }
+      delta = new Delta(delta.slice())
     else
-      delta = { ops: delta.ops.slice() }
-    delta.ops.push({ delete: this.getLength() })
+      delta = new Delta(delta.ops.slice())
+    # Retain trailing newline unless inserting one
+    lastOp = _.last(delta.slice(delta.length() - 1).ops)
+    delta.delete(this.getLength() - 1)
+    if lastOp? and _.isString(lastOp.insert) and _.last(lastOp.insert) == '\n'
+      delta.delete(1)
     this.updateContents(delta, source)
 
   setHTML: (html, source = Quill.sources.API) ->

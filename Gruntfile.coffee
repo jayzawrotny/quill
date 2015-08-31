@@ -10,7 +10,13 @@ module.exports = (grunt) ->
   grunt.initConfig(
     pkg: grunt.file.readJSON('package.json')
     port: 9000
+    karmaPort: 9876
   )
+
+  if (grunt.option('host'))
+    grunt.config('baseUrl', "http://#{grunt.option('host')}/")
+  else
+    grunt.config('baseUrl', "http://localhost:#{grunt.config('port')}/")
 
   files = fs.readdirSync(GRUNT_DIR)
   files.forEach((file) ->
@@ -19,7 +25,7 @@ module.exports = (grunt) ->
 
   grunt.registerTask('dev', ['connect:server', 'karma:server'])
 
-  grunt.registerTask('dist', ['clean', 'lodash', 'browserify', 'derequire', 'uglify', 'stylus', 'concat'])
+  grunt.registerTask('dist', ['clean', 'lodash', 'browserify', 'uglify', 'stylus', 'concat'])
   grunt.registerTask('release', ['dist', 'examples', 'copy', 'compress'])
 
   grunt.registerTask('server', ['connect:server:keepalive'])

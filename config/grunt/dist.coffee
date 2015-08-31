@@ -1,3 +1,4 @@
+derequire = require('derequire/plugin')
 fs = require('fs')
 through = require('through')
 
@@ -24,6 +25,7 @@ module.exports = (grunt) ->
           extensions: ['.js', '.coffee']
           standalone: 'Quill'
         transform: ['coffeeify', 'stylify', versionify]
+        plugin: [derequire]
       files:
         'dist/quill.js': ['src/index.coffee']
   )
@@ -60,25 +62,15 @@ module.exports = (grunt) ->
         'dist/quill.snow.css': ['dist/quill.snow.css']
   )
 
-  grunt.registerTask('derequire', ->
-    done = this.async()
-    grunt.util.spawn(
-      cmd: './node_modules/.bin/derequire'
-      args: ['dist/quill.js']
-    , (err, result, code) ->
-      fs.writeFile('dist/quill.js', result.stdout, done)
-    )
-  )
-
   grunt.config('lodash',
     options:
       modifier: 'modern'
       include: [
         'difference', 'intersection', 'last'
-        'all', 'each', 'invoke', 'map', 'reduce'
+        'all', 'each', 'find', 'invoke', 'map', 'reduce'
         'bind', 'defer', 'partial'
         'clone', 'extend', 'defaults', 'omit', 'values'
-        'isElement', 'isEqual', 'isNumber', 'isObject', 'isString'
+        'isElement', 'isEqual', 'isFunction', 'isNumber', 'isObject', 'isString'
         'uniqueId'
       ]
       flags: ['development']
